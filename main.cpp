@@ -1,0 +1,384 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <cstdlib>
+#include <ctime>
+#include <fstream>
+#include <map>
+#include <SDL.h>
+#include <SDL_image.h>
+#include <SDL_ttf.h>
+
+using namespace std;
+const string FIGURE[] = {
+
+        "   -------------    \n"
+
+        "   |                \n"
+
+        "   |                \n"
+
+        "   |                \n"
+
+        "   |                \n"
+
+        "   |     \n"
+
+        " -----   \n",
+
+        "   -------------    \n"
+
+        "   |           |    \n"
+
+        "   |                \n"
+
+        "   |                \n"
+
+        "   |                \n"
+
+        "   |     \n"
+
+        " -----   \n",
+
+        "   -------------    \n"
+
+        "   |           |    \n"
+
+        "   |           O    \n"
+
+        "   |                \n"
+
+        "   |                \n"
+
+        "   |     \n"
+
+        " -----   \n",
+
+        "   -------------    \n"
+
+        "   |           |    \n"
+
+        "   |           O    \n"
+
+        "   |           |    \n"
+
+        "   |                \n"
+
+        "   |     \n"
+
+        " -----   \n",
+
+        "   -------------    \n"
+
+        "   |           |    \n"
+
+        "   |           O    \n"
+
+        "   |          /|    \n"
+
+        "   |                \n"
+
+        "   |     \n"
+
+        " -----   \n",
+
+        "   -------------    \n"
+
+        "   |           |    \n"
+
+        "   |           O    \n"
+
+        "   |          /|\\  \n"
+
+        "   |                \n"
+
+        "   |     \n"
+
+        " -----   \n",
+
+        "   -------------    \n"
+
+        "   |           |    \n"
+
+        "   |           O    \n"
+
+        "   |          /|\\  \n"
+
+        "   |          /     \n"
+
+        "   |     \n"
+
+        " -----   \n",
+
+        "   -------------    \n"
+
+        "   |           |    \n"
+
+        "   |           O    \n"
+
+        "   |          /|\\  \n"
+
+        "   |          / \\  \n"
+
+        "   |     \n"
+
+        " -----   \n"
+
+    };
+
+
+
+const int SCREEN_WIDTH = 640;
+const int SCREEN_HEIGHT = 480;
+
+bool init(SDL_Window** window, SDL_Renderer** renderer) {
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        cerr << "SDL could not initialize! SDL_Error: " << SDL_GetError() << endl;
+        return false;
+    }
+
+    *window = SDL_CreateWindow("SDL Tutorial", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
+    if (*window == nullptr) {
+        cerr << "Window could not be created! SDL_Error: " << SDL_GetError() << endl;
+        return false;
+    }
+
+    *renderer = SDL_CreateRenderer(*window, -1, SDL_RENDERER_ACCELERATED);
+    if (*renderer == nullptr) {
+        cerr << "Renderer could not be created! SDL_Error: " << SDL_GetError() << endl;
+        return false;
+    }
+
+    // Initialize SDL_ttf
+    if (TTF_Init() == -1) {
+        cerr << "SDL_ttf could not initialize! TTF_Error: " << TTF_GetError() << endl;
+        return false;
+    }
+
+    return true;
+}
+
+void close(SDL_Window* window, SDL_Renderer* renderer) {
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    TTF_Quit();
+    SDL_Quit();
+}
+
+bool isMouseOverButton(int mouseX, int mouseY, SDL_Rect button) {
+    return mouseX > button.x && mouseX < button.x + button.w && mouseY > button.y && mouseY < button.y + button.h;
+}
+
+void renderButton(SDL_Renderer* renderer, SDL_Rect button, TTF_Font* font) {
+    // Render button
+    SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255); // Blue color
+    SDL_RenderFillRect(renderer, &button);
+
+    // Render button text
+    SDL_Color textColor = {255, 255, 255}; // White color
+    SDL_Surface* textSurface = TTF_RenderText_Solid(font, "bat dau", textColor);
+    SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+
+    int textWidth = textSurface->w;
+    int textHeight = textSurface->h;
+    SDL_Rect textRect = {button.x + (button.w - textWidth) / 2, button.y + (button.h - textHeight) / 2, textWidth, textHeight};
+
+    SDL_FreeSurface(textSurface);
+    SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
+    SDL_DestroyTexture(textTexture);
+}
+
+
+map<int, vector<string>> secretWord;
+map<string, string> wordHints; // Lưu trữ gợi ý cho từng từ
+vector<string> filenames = {"pet.txt","fruit.txt","flower.txt", "body.txt"};
+int score = 0;
+
+void loadWords(const vector<string>& filenames) {
+    for (const string& filename : filenames) {
+        ifstream file(filename);
+        if (!file.is_open()) {
+            cerr << "Could not open the file: " << filename << endl;
+            continue; // Bỏ qua tệp này và tiếp tục với tệp tiếp theo
+        }
+
+        string word;
+        int difficulty;
+        string hint;
+        while (file >> word >> difficulty) {
+            secretWord[difficulty].push_back(word);
+
+            // Gợi ý dựa trên tên của tệp
+            if (filename == "pet.txt") {
+                hint = "This word is a pet!";
+            } else if (filename == "fruit.txt") {
+                hint = "This word is a fruit!";
+            } else if (filename == "flower.txt") {
+                hint = "This word is a flower!";
+            } else if (filename == "body.txt") {
+                hint = "This word is a part of the body!";
+            }
+
+            // Lưu gợi ý cho từ này
+            wordHints[word] = hint;
+
+        }
+        file.close();
+    }
+}
+
+
+string chooseWord(int dokho) {
+    int index = rand() % secretWord[dokho].size();
+    return secretWord[dokho][index];
+}
+
+char nhap() {
+    char guess;
+    cout << "Enter your guess: ";
+    cin >> guess;
+    return tolower(guess);
+}
+
+void mahoa1(const string& word, const string& guessed) {
+    for (int i = 0; i < word.length(); ++i) {
+        if (word[i] == ' ')
+            cout << " ";
+        else if (guessed[i] == '_')
+            cout << "_ ";
+        else
+            cout << guessed[i] << " ";
+    }
+    cout << endl;
+}
+
+void goiy(const string& word, const string& guessed) {
+    for (int i = 0; i < word.length(); ++i) {
+        if (guessed[i] == '_') {
+            cout << "Hint: The word contains the character '" << word[i] << "'." << endl;
+            return;
+        }
+    }
+}
+
+int main(int argc, char* argv[]) {
+    SDL_Window* window = nullptr;
+    SDL_Renderer* renderer = nullptr;
+
+    if (!init(&window, &renderer)) {
+        cerr << "Failed to initialize!" << endl;
+        return -1;
+    }
+
+    TTF_Font* font = TTF_OpenFont("OpenSans-VariableFont_wdth,wght.ttf", 28); // Ensure you have a valid font file
+    if (font == nullptr) {
+        cerr << "Failed to load font! TTF_Error: " << TTF_GetError() << endl;
+        close(window, renderer);
+        return -1;
+    }
+
+    SDL_Rect startButton = { (SCREEN_WIDTH - 200) / 2, (SCREEN_HEIGHT - 50) / 2, 200, 50 };
+
+    bool quit = false;
+    SDL_Event e;
+
+    while (!quit) {
+        while (SDL_PollEvent(&e) != 0) {
+            if (e.type == SDL_QUIT) {
+                quit = true;
+            } else if (e.type == SDL_MOUSEBUTTONDOWN) {
+                int x, y;
+                SDL_GetMouseState(&x, &y);
+                if (isMouseOverButton(x, y, startButton)) {
+                    cout << "Start button clicked!" << endl;
+                    quit = true; // or trigger your game start logic
+                }
+            }
+        }
+
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // White background
+        SDL_RenderClear(renderer);
+
+        renderButton(renderer, startButton, font);
+
+        SDL_RenderPresent(renderer);
+    }
+
+    TTF_CloseFont(font);
+    close(window, renderer);
+
+
+    srand(time(0));
+    loadWords(filenames);
+
+    int dokho;
+    cout << "Choose your difficulty (1-3): ";
+    cin >> dokho;
+    cout << endl;
+
+    string word = chooseWord(dokho);
+    string guessed(word.length(), '_');
+    int incorrectGuesses = 0;
+    bool x = false;
+    while (incorrectGuesses < 8) {
+        bool correctGuess = false;
+
+        const int PATCH_LINES = 17;
+        for (int i = 0; i < PATCH_LINES; i++) {
+            cout << endl;
+        }
+        cout << "Your score: " << score << endl;
+        if( incorrectGuesses != 0)  cout<<FIGURE[incorrectGuesses-1];
+
+        cout << "Guess the word: "<<endl;;
+        mahoa1(word, guessed);
+        cout<<wordHints[word]<<endl;
+        char guess = nhap();
+
+        // Tìm chữ cái trong từ
+        for (int i = 0; i < word.length(); ++i) {
+            if (word[i] == guess) {
+                guessed[i] = guess;
+                correctGuess = true;
+                score += 50 - 5 * incorrectGuesses;
+
+                x = true;
+            }
+        }
+
+        // Kiểm tra chữ cái đã đoán
+        if (!correctGuess) {
+            ++incorrectGuesses;
+            cout << endl << endl
+                 << "Incorrect guess. " << 8 - incorrectGuesses << " guesses remaining." << endl;
+                 x = false;
+        }
+
+        // Kiểm tra nếu đã đoán đúng hết từ
+        if (guessed == word) {
+            cout << "Congratulations! You guessed the word: " << word << endl;
+            cout << "Your final score is: " << score;
+            break;
+        }
+
+        // Gợi ý sau khi đoán sai 3 lần
+        if (incorrectGuesses == 3 && !correctGuess) {
+            char choice;
+            cout << "Do you want a hint? (y/n): ";
+            cin >> choice;
+            if (choice == 'y' || choice == 'Y') {
+                goiy(word, guessed);
+            }
+        }
+    }
+
+    // Thông báo nếu hết lượt đoán
+    if (guessed != word) {
+        cout << "You lose, you ran out of guesses. The word was: " << word << endl
+        <<FIGURE[7]<<endl;
+    }
+
+    return 0;
+}
+
+

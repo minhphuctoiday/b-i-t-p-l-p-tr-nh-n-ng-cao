@@ -37,6 +37,9 @@
 			<Add directory="../../../../../../../SDL2-devel-2.0.5-mingw/SDL2-2.0.5/i686-w64-mingw32/lib" />
 		</Linker>
 		<Unit filename="main.cpp" />
+		<Unit filename="pet.text" />
+		<Unit filename="pet.txt" />
+		<Unit filename="plant.txt" />
 		<Extensions>
 			<lib_finder disable_auto="1" />
 		</Extensions>
